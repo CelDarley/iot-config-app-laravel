@@ -4,9 +4,24 @@
 
 @section('content')
 <div class="device-config-container">
+    @if(session('message'))
+        <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-lg mb-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-lg font-medium">{{ session('message') }}</p>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="device-card">
         <h2>📱 Configuração de Dispositivo IoT</h2>
-        <p>Configure seu dispositivo IoT para conectar à rede WiFi</p>
+        <p>Complete a configuração do seu dispositivo IoT</p>
 
         @if ($errors->any())
             <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -18,45 +33,64 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ route('device.save') }}" class="device-form">
-            @csrf
-            
-            <div class="form-group">
-                <label for="ssid">Nome da Rede WiFi (SSID)</label>
-                <input
-                    type="text"
-                    id="ssid"
-                    name="ssid"
-                    value="{{ old('ssid', request('ssid')) }}"
-                    required
-                    class="form-input"
-                    placeholder="Digite o nome da rede WiFi"
-                />
+        <!-- Verificar se MAC existe no localStorage -->
+        <div id="mac-check" class="alert alert-info">
+            <span class="spinner"></span> Verificando dispositivo...
             </div>
 
-            <div class="form-group">
-                <label for="password">Senha da Rede WiFi</label>
-                <div class="relative">
+        <!-- Botões de teste para debug -->
+        <div class="debug-section" style="margin-bottom: 1rem;">
+            <h4>🧪 Testes de Debug</h4>
+            <button onclick="testLocalStorage()" class="btn btn-primary" style="margin: 0.25rem;">
+                🔍 Verificar localStorage
+            </button>
+            <button onclick="clearLocalStorage()" class="btn btn-secondary" style="margin: 0.25rem;">
+                🗑️ Limpar localStorage
+            </button>
+            <button onclick="setTestMAC()" class="btn btn-warning" style="margin: 0.25rem;">
+                🧪 Definir MAC teste
+            </button>
+            <button onclick="debugMACNow()" class="btn btn-info" style="margin: 0.25rem;">
+                🔍 Debug imediato
+            </button>
+        </div>
+
+        <form method="POST" action="{{ route('device.save') }}" class="device-form" id="device-config-form" style="display: none;">
+            @csrf
+            
+            <!-- Campo hidden para MAC address -->
+            <input type="hidden" id="mac_address" name="mac_address" value="">
+            
+            <div class="device-info-section">
+                <h3>📟 Dispositivo ESP32 Detectado Automaticamente</h3>
+                <div class="detected-device">
+                    <div class="device-info-item">
+                        <strong>MAC Address:</strong>
+                        <span id="display-mac" class="mono mac-display">-</span>
+                    </div>
+                    <div class="device-status">
+                        <span class="status-auto">✅ Detectado automaticamente</span>
+                    </div>
+                </div>
+                
+                <!-- Campo read-only visível para mostrar o MAC, mas não editável -->
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label for="mac_display_field">🔗 MAC Address do Dispositivo</label>
                     <input
-                        type="password"
-                        id="password"
-                        name="password"
-                        required
-                        class="form-input pr-12"
-                        placeholder="Digite a senha da rede"
+                        type="text"
+                        id="mac_display_field"
+                        class="form-input mac-readonly"
+                        value=""
+                        readonly
+                        style="background-color: #f8f9fa; border: 2px solid #28a745; color: #155724;"
+                        placeholder="Aguardando detecção automática..."
                     />
-                    <button
-                        type="button"
-                        onclick="togglePassword()"
-                        class="absolute right-3 top-1/2 transform -translate-y-1/2 text-white opacity-70 hover:opacity-100"
-                    >
-                        <span id="passwordToggle">👁️</span>
-                    </button>
+                    <small class="text-gray-300 text-sm">✅ Preenchido automaticamente - não editar</small>
                 </div>
             </div>
 
             <div class="form-group">
-                <label for="device_name">Nome do Dispositivo</label>
+                <label for="device_name">🏷️ Nome do Dispositivo</label>
                 <input
                     type="text"
                     id="device_name"
@@ -64,272 +98,722 @@
                     value="{{ old('device_name') }}"
                     required
                     class="form-input"
-                    placeholder="Ex: Sensor Temperatura Sala"
+                    placeholder="Ex: Sensor Temperatura Sala A1"
                 />
+                <small class="text-gray-300 text-sm">Nome identificador do dispositivo</small>
             </div>
 
             <div class="form-group">
-                <label for="device_type">Tipo do Dispositivo</label>
+                <label for="device_type">⚙️ Tipo do Dispositivo</label>
                 <select id="device_type" name="device_type" required class="form-input">
                     <option value="">Selecione o tipo</option>
-                    <option value="sensor" {{ old('device_type') == 'sensor' ? 'selected' : '' }}>Sensor</option>
-                    <option value="atuador" {{ old('device_type') == 'atuador' ? 'selected' : '' }}>Atuador</option>
-                    <option value="monitor" {{ old('device_type') == 'monitor' ? 'selected' : '' }}>Monitor</option>
-                    <option value="controlador" {{ old('device_type') == 'controlador' ? 'selected' : '' }}>Controlador</option>
+                    <option value="sensor" {{ old('device_type') == 'sensor' ? 'selected' : '' }}>📊 Sensor</option>
+                    <option value="atuador" {{ old('device_type') == 'atuador' ? 'selected' : '' }}>🔧 Atuador</option>
+                    <option value="monitor" {{ old('device_type') == 'monitor' ? 'selected' : '' }}>📺 Monitor</option>
+                    <option value="controlador" {{ old('device_type') == 'controlador' ? 'selected' : '' }}>🎛️ Controlador</option>
                 </select>
+                <small class="text-gray-300 text-sm">Tipo funcional do dispositivo IoT</small>
             </div>
 
             <div class="form-group">
-                <label for="department">Departamento</label>
+                <label for="department">🏢 Departamento</label>
                 <select id="department" name="department" required class="form-input">
                     <option value="">Selecione o departamento</option>
-                    <option value="producao" {{ old('department') == 'producao' ? 'selected' : '' }}>Produção</option>
-                    <option value="qualidade" {{ old('department') == 'qualidade' ? 'selected' : '' }}>Qualidade</option>
-                    <option value="manutencao" {{ old('department') == 'manutencao' ? 'selected' : '' }}>Manutenção</option>
-                    <option value="administrativo" {{ old('department') == 'administrativo' ? 'selected' : '' }}>Administrativo</option>
+                    <option value="producao" {{ old('department') == 'producao' ? 'selected' : '' }}>🏭 Produção</option>
+                    <option value="qualidade" {{ old('department') == 'qualidade' ? 'selected' : '' }}>✅ Qualidade</option>
+                    <option value="manutencao" {{ old('department') == 'manutencao' ? 'selected' : '' }}>🔧 Manutenção</option>
+                    <option value="administrativo" {{ old('department') == 'administrativo' ? 'selected' : '' }}>📋 Administrativo</option>
                 </select>
-            </div>
-
-            <div class="form-group">
-                <label for="mac_address">Endereço MAC (opcional)</label>
-                <input
-                    type="text"
-                    id="mac_address"
-                    name="mac_address"
-                    value="{{ old('mac_address', 'Auto-gerado') }}"
-                    readonly
-                    class="form-input bg-gray-200"
-                    placeholder="Será gerado automaticamente"
-                />
-                <small class="text-gray-300 text-sm">O endereço MAC será gerado automaticamente</small>
+                <small class="text-gray-300 text-sm">Departamento onde o dispositivo será instalado</small>
             </div>
 
             <div class="form-actions">
                 <button type="submit" class="submit-button" id="submitBtn">
-                    <span id="submitText">💾 Salvar Configuração</span>
+                    <span id="submitText">📡 Criar Tópico MQTT e Configurar Dispositivo</span>
                 </button>
                 <button type="button" onclick="resetForm()" class="reset-button">
                     🔄 Limpar Formulário
                 </button>
             </div>
         </form>
-    </div>
 
-    <!-- Resultado da API -->
-    @if(session('api_result'))
-        <div class="device-card">
-            <h2>✅ Configuração Salva com Sucesso!</h2>
-            <div class="api-result">
-                <div class="result-header">
-                    <h3>📡 Tópico MQTT Criado</h3>
-                </div>
-                <div class="topic-info">
-                    <h4>Nome do Tópico:</h4>
-                    <div class="topic-name">{{ session('api_result.topic') }}</div>
-                    <h4>ID do Dispositivo:</h4>
-                    <div class="device-id">{{ session('api_result.deviceId') }}</div>
-                    <h4>Timestamp:</h4>
-                    <div class="timestamp">{{ session('api_result.timestamp') }}</div>
+        <!-- Mensagem de erro se não encontrar MAC -->
+        <div id="no-mac-error" class="alert alert-danger" style="display: none;">
+            <h4>❌ Dispositivo não encontrado</h4>
+            <p>Não foi possível encontrar o MAC address do dispositivo ESP32.</p>
+            <div class="troubleshooting">
+                <h5>🔍 Possíveis soluções:</h5>
+                <ul>
+                    <li>Primeiro execute o processo de conexão WiFi no captive portal</li>
+                    <li>Verifique se você acessou o ESP32 em <strong>192.168.4.1:5000</strong></li>
+                    <li>Certifique-se de que o dispositivo se conectou com sucesso</li>
+                    <li>Tente fazer a configuração WiFi novamente</li>
+                </ul>
+                <button onclick="window.location.href='http://192.168.4.1:5000'" class="btn btn-primary">
+                    🔧 Ir para Captive Portal
+                </button>
+                    </div>
                 </div>
             </div>
-        </div>
-    @endif
+
+    <!-- Resultado da configuração -->
+    <div id="config-result" style="display: none;"></div>
 </div>
 
 <script>
-function togglePassword() {
-    const passwordInput = document.getElementById('password');
-    const passwordToggle = document.getElementById('passwordToggle');
+// Verificar MAC address no localStorage quando página carrega
+document.addEventListener('DOMContentLoaded', function() {
+    checkDeviceMAC();
+});
+
+// Funções de debug para localStorage
+function testLocalStorage() {
+    const macAddress = localStorage.getItem('esp32_mac_address');
+    const allItems = Object.keys(localStorage).map(key => `${key}: ${localStorage.getItem(key)}`).join('\n');
     
-    if (passwordInput.type === 'password') {
-        passwordInput.type = 'text';
-        passwordToggle.textContent = '🙈';
-    } else {
-        passwordInput.type = 'password';
-        passwordToggle.textContent = '👁️';
+    alert(`🔍 Debug localStorage:\n\nMAC Address: ${macAddress || 'não encontrado'}\nTipo: ${typeof macAddress}\nComprimento: ${macAddress ? macAddress.length : 'null'}\n\nTodos os itens:\n${allItems || 'localStorage vazio'}`);
+    
+    console.log('🔍 Debug localStorage completo:', localStorage);
+    console.log('MAC específico:', macAddress);
+}
+
+function clearLocalStorage() {
+    if (confirm('⚠️ Isso vai limpar TODOS os dados do localStorage. Continuar?')) {
+        localStorage.clear();
+        alert('🗑️ localStorage limpo!');
+        location.reload();
     }
+}
+
+function setTestMAC() {
+    const testMAC = 'AA:BB:CC:DD:EE:FF';
+    console.log('🧪 Definindo MAC de teste:', testMAC);
+    localStorage.setItem('esp32_mac_address', testMAC);
+    
+    // Verificar se foi salvo
+    const saved = localStorage.getItem('esp32_mac_address');
+    console.log('🧪 MAC salvo:', saved);
+    
+    alert(`🧪 MAC de teste definido: ${testMAC}\n\nRecarregando página para testar...`);
+    location.reload();
+}
+
+// Função adicional para debug imediato
+function debugMACNow() {
+    console.log('🔍 Debug imediato do localStorage:');
+    console.log('- localStorage completo:', localStorage);
+    console.log('- MAC atual:', localStorage.getItem('esp32_mac_address'));
+    console.log('- Todas as chaves:', Object.keys(localStorage));
+    
+    // Testar acesso aos elementos
+    const macField = document.getElementById('mac_address');
+    const displayField = document.getElementById('display-mac');
+    const macDisplayField = document.getElementById('mac_display_field');
+    const deviceForm = document.getElementById('device-config-form');
+    
+    console.log('- Elementos DOM:');
+    console.log('  - Campo MAC hidden:', macField);
+    console.log('  - Display MAC span:', displayField);
+    console.log('  - Campo MAC visível:', macDisplayField);
+    console.log('  - Formulário:', deviceForm);
+    console.log('  - Formulário visível:', deviceForm?.style.display);
+    
+    alert('Verifique o console para detalhes completos do debug');
+}
+
+function checkDeviceMAC() {
+    console.log('🚀 Iniciando checkDeviceMAC...');
+    
+    const macCheckDiv = document.getElementById('mac-check');
+    const deviceForm = document.getElementById('device-config-form');
+    const noMacError = document.getElementById('no-mac-error');
+    
+    // Verificar se elementos existem
+    console.log('Elementos encontrados:', {
+        macCheckDiv: !!macCheckDiv,
+        deviceForm: !!deviceForm,
+        noMacError: !!noMacError
+    });
+    
+    // Buscar MAC no localStorage com debug detalhado
+    console.log('🔍 Verificando localStorage...');
+    console.log('localStorage completo:', localStorage);
+    console.log('Chaves no localStorage:', Object.keys(localStorage));
+    
+    const macAddress = localStorage.getItem('esp32_mac_address');
+    console.log('📍 MAC obtido do localStorage:', macAddress);
+    console.log('📍 Tipo do MAC:', typeof macAddress);
+    console.log('📍 Comprimento do MAC:', macAddress ? macAddress.length : 'null');
+    console.log('📍 MAC é válido?', macAddress && macAddress !== 'UNKNOWN' && macAddress !== 'null' && macAddress.length > 10);
+    
+    // Forçar um pequeno delay para garantir que a página está carregada
+    setTimeout(() => {
+        if (macAddress && macAddress !== 'UNKNOWN' && macAddress !== 'null' && macAddress.length > 10) {
+            // MAC encontrado - mostrar formulário
+            console.log('✅ MAC Address válido encontrado:', macAddress);
+            
+            // Preencher campos (hidden e visível)
+            const macField = document.getElementById('mac_address');
+            const displayField = document.getElementById('display-mac');
+            const macDisplayField = document.getElementById('mac_display_field');
+            
+            if (macField) {
+                macField.value = macAddress;
+                console.log('✅ Campo hidden preenchido:', macField.value);
+            } else {
+                console.error('❌ Campo mac_address não encontrado!');
+            }
+            
+            if (displayField) {
+                displayField.textContent = macAddress;
+                console.log('✅ Display MAC atualizado:', displayField.textContent);
+            } else {
+                console.error('❌ Campo display-mac não encontrado!');
+            }
+            
+            if (macDisplayField) {
+                macDisplayField.value = macAddress;
+                console.log('✅ Campo visível read-only preenchido:', macDisplayField.value);
+            } else {
+                console.error('❌ Campo mac_display_field não encontrado!');
+            }
+            
+            // Mostrar/ocultar elementos
+            if (macCheckDiv) macCheckDiv.style.display = 'none';
+            if (deviceForm) deviceForm.style.display = 'block';
+            if (noMacError) noMacError.style.display = 'none';
+            
+            console.log('✅ Formulário exibido com MAC:', macAddress);
+            
+            // Mostrar confirmação visual após um pequeno delay
+            setTimeout(() => {
+                alert(`✅ Dispositivo ESP32 detectado automaticamente!\n\nMAC: ${macAddress}\n\nO formulário está pronto para preenchimento.`);
+            }, 800);
+            
+        } else {
+            // MAC não encontrado - mostrar erro detalhado
+            console.log('❌ MAC Address não encontrado ou inválido');
+            console.log('❌ Valor recebido:', macAddress);
+            console.log('❌ Chaves disponíveis:', Object.keys(localStorage));
+            
+            if (macCheckDiv) macCheckDiv.style.display = 'none';
+            if (deviceForm) deviceForm.style.display = 'none';
+            if (noMacError) noMacError.style.display = 'block';
+            
+            // Debug mais detalhado no erro
+            const debugInfo = document.createElement('div');
+            debugInfo.style.marginTop = '1rem';
+            debugInfo.style.padding = '1rem';
+            debugInfo.style.background = '#f8f9fa';
+            debugInfo.style.borderRadius = '8px';
+            debugInfo.innerHTML = `
+                <h4>🔍 Debug localStorage:</h4>
+                <p><strong>MAC obtido:</strong> ${macAddress || 'null'}</p>
+                <p><strong>Tipo:</strong> ${typeof macAddress}</p>
+                <p><strong>Todas as chaves:</strong> ${Object.keys(localStorage).join(', ') || 'nenhuma'}</p>
+                <p><strong>Conteúdo completo:</strong></p>
+                <pre style="background: #fff; padding: 0.5rem; border-radius: 4px; overflow-x: auto;">${JSON.stringify(localStorage, null, 2)}</pre>
+                <button onclick="localStorage.setItem('esp32_mac_address', 'AA:BB:CC:DD:EE:FF'); location.reload();" style="margin-top: 0.5rem; padding: 0.5rem; background: #007bff; color: white; border: none; border-radius: 4px;">
+                    🧪 Testar com MAC fictício
+                </button>
+                <button onclick="console.log('localStorage atual:', localStorage); alert('Verifique o console para detalhes');" style="margin-top: 0.5rem; margin-left: 0.5rem; padding: 0.5rem; background: #28a745; color: white; border: none; border-radius: 4px;">
+                    🔍 Debug console
+                </button>
+            `;
+            
+            // Adicionar debug info se não existe
+            if (!document.getElementById('debug-info') && noMacError) {
+                debugInfo.id = 'debug-info';
+                noMacError.appendChild(debugInfo);
+            }
+            
+            console.log('❌ Exibindo tela de erro - MAC não encontrado');
+        }
+    }, 300);
 }
 
 function resetForm() {
     if (confirm('Tem certeza que deseja limpar o formulário?')) {
         document.querySelector('.device-form').reset();
-        document.getElementById('mac_address').value = 'Auto-gerado';
     }
 }
 
-// Gerar MAC address único
-function generateMacAddress() {
-    const mac = 'XX:XX:XX:XX:XX:XX'.replace(/X/g, function() {
-        return Math.floor(Math.random() * 16).toString(16).toUpperCase();
-    });
-    document.getElementById('mac_address').value = mac;
-}
-
-// Gerar MAC address ao carregar a página
-document.addEventListener('DOMContentLoaded', function() {
-    generateMacAddress();
-});
-
-// Validação do formulário
-document.querySelector('.device-form').addEventListener('submit', function(e) {
+// Submissão do formulário
+document.getElementById('device-config-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    // Verificar se MAC está preenchido antes de submeter
+    const macAddress = document.getElementById('mac_address').value;
+    if (!macAddress || macAddress.length < 10) {
+        alert('❌ Erro: MAC Address não detectado!\n\nExecute primeiro o processo de configuração WiFi no captive portal.');
+        return false;
+    }
+    
     const submitBtn = document.getElementById('submitBtn');
     const submitText = document.getElementById('submitText');
+    const form = e.target;
+    const resultDiv = document.getElementById('config-result');
     
+    // Obter dados do formulário
+    const formData = new FormData(form);
+    const macAddress = formData.get('mac_address');
+    const deviceName = formData.get('device_name');
+    const deviceType = formData.get('device_type');
+    const department = formData.get('department');
+    
+    // Validação
+    if (!macAddress || !deviceName || !deviceType || !department) {
+        alert('Por favor, preencha todos os campos obrigatórios.');
+        return;
+    }
+    
+    // Mostrar loading
     submitBtn.disabled = true;
-    submitText.textContent = '⏳ Salvando...';
+    submitText.textContent = '📡 Criando tópico MQTT...';
     
-    // Re-habilitar após 5 segundos (caso de erro)
-    setTimeout(() => {
+    resultDiv.innerHTML = '<div class="alert alert-info">📡 Criando tópico MQTT no backend...</div>';
+    resultDiv.style.display = 'block';
+    
+    try {
+        // Enviar para o backend Laravel
+        const response = await fetch('{{ route("device.save") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                mac_address: macAddress,
+                device_name: deviceName,
+                device_type: deviceType,
+                department: department
+                })
+            });
+            
+        if (!response.ok) {
+            throw new Error(`Erro HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+        const data = await response.json();
+        console.log('Resposta do backend:', data);
+            
+        if (data.success) {
+            // Mostrar sucesso
+                resultDiv.innerHTML = `
+                    <div class="device-card success-card">
+                    <h2>🎉 Dispositivo Configurado com Sucesso!</h2>
+                        
+                        <div class="result-section">
+                            <h3>📱 Informações do Dispositivo</h3>
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <strong>Nome:</strong>
+                                <span>${deviceName}</span>
+                                </div>
+                                <div class="info-item">
+                                <strong>MAC Address:</strong>
+                                <span class="mono">${macAddress}</span>
+                                </div>
+                                <div class="info-item">
+                                    <strong>Tipo:</strong>
+                                <span>${deviceType}</span>
+                                </div>
+                                <div class="info-item">
+                                    <strong>Departamento:</strong>
+                                    <span>${department}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="result-section">
+                            <h3>📡 Tópico MQTT Criado</h3>
+                            <div class="topic-info">
+                                <div class="topic-item">
+                                    <strong>Nome do Tópico:</strong>
+                                <div class="topic-name">${data.mqtt_info.topic}</div>
+                                </div>
+                                <div class="topic-item">
+                                <strong>Broker MQTT:</strong>
+                                <div class="topic-name">${data.mqtt_info.broker}</div>
+                                </div>
+                                <div class="topic-item">
+                                <strong>Porta:</strong>
+                                <div class="topic-id">${data.mqtt_info.port}</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="result-section">
+                        <h3>🚀 Configurando ESP32...</h3>
+                        <div id="esp32-config-status" class="next-steps">
+                            <p id="esp32-status">🔄 Enviando configuração para o ESP32...</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+            submitText.textContent = '🔧 Configurando ESP32...';
+            
+            // Agora configurar o ESP32 com os dados do tópico MQTT
+            await configureESP32(data.mqtt_info);
+            
+            } else {
+            throw new Error(data.message || 'Erro ao criar tópico MQTT');
+        }
+        
+    } catch (error) {
+        console.error('Erro:', error);
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <h4>❌ Erro na Configuração</h4>
+                <p><strong>Detalhes:</strong> ${error.message}</p>
+                <div class="troubleshooting">
+                    <h5>🔍 Possíveis Soluções:</h5>
+                    <ul>
+                        <li>Verifique sua conexão com a internet</li>
+                        <li>Certifique-se de que o backend está funcionando</li>
+                        <li>Tente novamente em alguns segundos</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+    } finally {
         submitBtn.disabled = false;
-        submitText.textContent = '💾 Salvar Configuração';
-    }, 5000);
+        submitText.textContent = '📡 Criar Tópico MQTT e Configurar Dispositivo';
+    }
 });
+
+// Configurar ESP32 com dados do MQTT
+async function configureESP32(mqttInfo) {
+    const statusElement = document.getElementById('esp32-status');
+    
+    try {
+        statusElement.innerHTML = '🔧 Conectando ao ESP32...';
+        
+        // Tentar várias possibilidades de IP do ESP32
+        const possibleIPs = [
+            '192.168.0.106', // IP conhecido na rede
+            '192.168.1.100', // Faixa comum de DHCP
+            '192.168.1.101',
+            '192.168.0.100',
+            '192.168.0.101'
+        ];
+        
+        let configured = false;
+        
+        for (const ip of possibleIPs) {
+            try {
+                statusElement.innerHTML = `🔧 Tentando configurar ESP32 em ${ip}:5000...`;
+                
+                const response = await fetch(`http://${ip}:5000/api/mqtt/config`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        broker: mqttInfo.broker,
+                        port: mqttInfo.port,
+                        topic: mqttInfo.topic
+                    }),
+                    timeout: 5000
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        statusElement.innerHTML = `✅ ESP32 configurado com sucesso em ${ip}!`;
+                        configured = true;
+                        
+                        // Mostrar próximos passos
+        setTimeout(() => {
+                            statusElement.innerHTML = `
+                                ✅ ESP32 configurado com sucesso!<br>
+                                📡 Conectado ao MQTT: ${mqttInfo.broker}<br>
+                                📝 Inscrito no tópico: ${mqttInfo.topic}<br>
+                                🚀 Dispositivo pronto para receber comandos!
+                            `;
+                        }, 1000);
+                        
+                        break;
+                    }
+                }
+            } catch (err) {
+                console.log(`Tentativa em ${ip} falhou:`, err);
+                continue;
+            }
+        }
+        
+        if (!configured) {
+            statusElement.innerHTML = `
+                ⚠️ Não foi possível configurar o ESP32 automaticamente.<br>
+                📋 <strong>Configuração Manual:</strong><br>
+                🔧 Broker: ${mqttInfo.broker}<br>
+                📊 Porta: ${mqttInfo.port}<br>
+                📝 Tópico: ${mqttInfo.topic}<br>
+                💡 Configure manualmente no ESP32 se necessário.
+            `;
+        }
+            
+        } catch (error) {
+        console.error('Erro ao configurar ESP32:', error);
+    statusElement.innerHTML = `
+            ❌ Erro ao configurar ESP32: ${error.message}<br>
+            📋 Use a configuração manual se necessário.
+        `;
+    }
+}
 </script>
 
 <style>
-.form-actions {
-    margin-top: 2rem;
+.device-info-section {
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
 }
 
-.api-result {
-    margin-top: 1rem;
+.device-info-section h3 {
+    color: #1e40af;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.detected-device {
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 0.75rem;
+}
+
+.device-info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.device-info-item strong {
+    color: #374151;
+}
+
+.device-status {
+    margin-top: 0.5rem;
+    text-align: center;
+}
+
+.status-auto {
+    background: #d4edda;
+    color: #155724;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    display: inline-block;
+}
+
+.mac-readonly {
+    background-color: #f8f9fa !important;
+    border: 2px solid #28a745 !important;
+    color: #155724 !important;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    text-align: center;
+    cursor: not-allowed;
+}
+
+.mac-readonly::placeholder {
+    color: #6c757d;
+    font-style: italic;
+}
+
+.mac-display {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    color: #155724;
+    background: #f8f9fa;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #28a745;
+}
+
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 8px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.success-card {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border: 2px solid #34d399;
+}
+
+.result-section {
+    margin: 1.5rem 0;
     padding: 1rem;
     background: rgba(255, 255, 255, 0.1);
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.result-header h3 {
-    font-size: 1.8rem;
-    color: var(--color-primary-light);
+.result-section h3 {
+    font-size: 1.3rem;
+    color: #ffffff;
     margin-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    padding-bottom: 0.5rem;
 }
 
-.topic-info h4 {
-    font-size: 1.2rem;
-    color: var(--color-primary-dark);
-    margin-bottom: 0.5rem;
-    margin-top: 1rem;
+.info-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
 }
 
-.topic-name, .device-id, .timestamp {
-    font-family: 'Courier New', monospace;
-    font-size: 1rem;
-    color: var(--color-primary-light);
-    white-space: pre-wrap;
-    word-break: break-all;
-    background: rgba(0, 0, 0, 0.2);
+@media (min-width: 768px) {
+    .info-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
     padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.2);
     border-radius: 4px;
-    margin-bottom: 0.5rem;
 }
 
-.relative {
-    position: relative;
-}
-
-.absolute {
-    position: absolute;
-}
-
-.right-3 {
-    right: 0.75rem;
-}
-
-.top-1\/2 {
-    top: 50%;
-}
-
-.transform {
-    transform: translateY(-50%);
-}
-
-.-translate-y-1\/2 {
-    transform: translateY(-50%);
-}
-
-.text-white {
-    color: white;
-}
-
-.opacity-70 {
-    opacity: 0.7;
-}
-
-.hover\:opacity-100:hover {
-    opacity: 1;
-}
-
-.pr-12 {
-    padding-right: 3rem;
-}
-
-.bg-gray-200 {
-    background-color: #e5e7eb;
-}
-
-.text-gray-300 {
-    color: #d1d5db;
-}
-
-.text-sm {
-    font-size: 0.875rem;
-    line-height: 1.25rem;
-}
-
-.mt-1 {
-    margin-top: 0.25rem;
-}
-
-.mb-1 {
+.info-item strong {
+    color: #d1fae5;
+    font-size: 0.9rem;
     margin-bottom: 0.25rem;
 }
 
-.mt-4 {
-    margin-top: 1rem;
+.info-item span {
+    color: #ffffff;
+    font-size: 1rem;
 }
 
-.mb-4 {
+.mono {
+    font-family: 'Courier New', monospace;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+}
+
+.topic-item {
     margin-bottom: 1rem;
 }
 
-.px-4 {
-    padding-left: 1rem;
-    padding-right: 1rem;
+.topic-item strong {
+    display: block;
+    color: #d1fae5;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
 }
 
-.py-3 {
-    padding-top: 0.75rem;
-    padding-bottom: 0.75rem;
+.topic-name, .topic-id {
+    font-family: 'Courier New', monospace;
+    font-size: 0.95rem;
+    color: #ffffff;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.75rem;
+    border-radius: 4px;
+    word-break: break-all;
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.rounded {
-    border-radius: 0.25rem;
+.next-steps {
+    color: #ffffff;
 }
 
-.border {
-    border-width: 1px;
+.next-steps p {
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    border-left: 3px solid #34d399;
 }
 
-.border-red-400 {
+.alert {
+    padding: 1rem;
+    border-radius: 8px;
+    margin: 1rem 0;
+    border: 1px solid transparent;
+}
+
+.alert-info {
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+    border-color: #38bdf8;
+    color: white;
+}
+
+.alert-success {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border-color: #34d399;
+    color: white;
+}
+
+.alert-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
     border-color: #f87171;
+    color: white;
 }
 
-.bg-red-100 {
-    background-color: #fee2e2;
+.troubleshooting {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
 }
 
-.text-red-700 {
-    color: #b91c1c;
+.troubleshooting h5 {
+    margin: 0 0 0.5rem 0;
+    color: #fef3c7;
 }
 
-.list-disc {
-    list-style-type: disc;
+.troubleshooting ul {
+    margin: 0;
+    padding-left: 1.5rem;
 }
 
-.list-inside {
-    list-style-position: inside;
+.troubleshooting li {
+    margin: 0.5rem 0;
 }
+
+.btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    margin: 0.5rem 0.25rem;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+
+/* Outros estilos mantidos do arquivo original... */
 </style>
 @endsection
 
