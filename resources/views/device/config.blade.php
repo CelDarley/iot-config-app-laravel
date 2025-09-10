@@ -73,20 +73,7 @@
                     </div>
                 </div>
                 
-                <!-- Campo read-only visível para mostrar o MAC, mas não editável -->
-                <div class="form-group" style="margin-top: 1rem;">
-                    <label for="mac_display_field">🔗 MAC Address do Dispositivo</label>
-                    <input
-                        type="text"
-                        id="mac_display_field"
-                        class="form-input mac-readonly"
-                        value=""
-                        readonly
-                        style="background-color: #f8f9fa; border: 2px solid #28a745; color: #155724;"
-                        placeholder="Aguardando detecção automática..."
-                    />
-                    <small class="text-gray-300 text-sm">✅ Preenchido automaticamente - não editar</small>
-                </div>
+
             </div>
 
             <div class="form-group">
@@ -208,13 +195,11 @@ function debugMACNow() {
     // Testar acesso aos elementos
     const macField = document.getElementById('mac_address');
     const displayField = document.getElementById('display-mac');
-    const macDisplayField = document.getElementById('mac_display_field');
     const deviceForm = document.getElementById('device-config-form');
     
     console.log('- Elementos DOM:');
     console.log('  - Campo MAC hidden:', macField);
     console.log('  - Display MAC span:', displayField);
-    console.log('  - Campo MAC visível:', macDisplayField);
     console.log('  - Formulário:', deviceForm);
     console.log('  - Formulário visível:', deviceForm?.style.display);
     
@@ -252,10 +237,9 @@ function checkDeviceMAC() {
             // MAC encontrado - mostrar formulário
             console.log('✅ MAC Address válido encontrado:', macAddress);
             
-            // Preencher campos (hidden e visível)
+            // Preencher campos (hidden e display informativo)
             const macField = document.getElementById('mac_address');
             const displayField = document.getElementById('display-mac');
-            const macDisplayField = document.getElementById('mac_display_field');
             
             if (macField) {
                 macField.value = macAddress;
@@ -269,13 +253,6 @@ function checkDeviceMAC() {
                 console.log('✅ Display MAC atualizado:', displayField.textContent);
             } else {
                 console.error('❌ Campo display-mac não encontrado!');
-            }
-            
-            if (macDisplayField) {
-                macDisplayField.value = macAddress;
-                console.log('✅ Campo visível read-only preenchido:', macDisplayField.value);
-            } else {
-                console.error('❌ Campo mac_display_field não encontrado!');
             }
             
             // Mostrar/ocultar elementos
@@ -611,20 +588,7 @@ async function configureESP32(mqttInfo) {
     display: inline-block;
 }
 
-.mac-readonly {
-    background-color: #f8f9fa !important;
-    border: 2px solid #28a745 !important;
-    color: #155724 !important;
-    font-family: 'Courier New', monospace;
-    font-weight: bold;
-    text-align: center;
-    cursor: not-allowed;
-}
 
-.mac-readonly::placeholder {
-    color: #6c757d;
-    font-style: italic;
-}
 
 .mac-display {
     font-family: 'Courier New', monospace;
