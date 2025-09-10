@@ -10,20 +10,27 @@
             <p>Configure o tópico MQTT para seu dispositivo IoT</p>
         </div>
 
-        @if($deviceName && $macAddress)
-        <div class="device-detected">
+        {{-- Seção de dispositivo detectado - mostrada via JavaScript --}}
+        <div class="device-detected" id="device-detected-section" style="display: none;">
             <div class="success-icon">✅</div>
-            <h3>Dispositivo Detectado</h3>
+            <h3>📟 Dispositivo ESP32 Detectado Automaticamente</h3>
             <div class="device-info">
                 <div class="info-item">
-                    <strong>Nome:</strong> {{ $deviceName }}
+                    <strong>🔗 MAC Address:</strong> <span id="detected-mac" class="mono">-</span>
                 </div>
                 <div class="info-item">
-                    <strong>MAC:</strong> {{ $macAddress }}
+                    <strong>✅ Status:</strong> <span class="status-auto">Detectado automaticamente</span>
                 </div>
             </div>
         </div>
-        @endif
+
+        {{-- Seção mostrada quando MAC não é encontrado --}}
+        <div class="device-not-detected" id="device-not-detected-section" style="display: none;">
+            <div class="warning-icon">⚠️</div>
+            <h3>Dispositivo ESP32 Não Detectado</h3>
+            <p>Configure primeiro o ESP32 através do portal de configuração WiFi.</p>
+            <p>Após conectar o ESP32 à rede WiFi, volte aqui para configurar o tópico MQTT.</p>
+        </div>
 
         <form id="topicForm" action="{{ route('device.save-topic') }}" method="POST">
             @csrf
@@ -44,18 +51,7 @@
             </div>
             @endif
 
-            @if(!$macAddress)
-            <div class="form-group">
-                <label for="mac_address_input">🔧 MAC Address</label>
-                <input type="text" id="mac_address_input" name="mac_address" required 
-                       placeholder="Ex: AA:BB:CC:DD:EE:FF" 
-                       pattern="^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
-                       value="{{ old('mac_address') }}">
-                @error('mac_address')
-                    <div class="error">{{ $message }}</div>
-                @enderror
-            </div>
-            @endif
+            {{-- Campo MAC removido - agora é automático via localStorage --}}
 
             <div class="form-group">
                 <label for="device_type">⚙️ Tipo do Dispositivo</label>
@@ -227,6 +223,38 @@
     margin-top: 0.5rem;
 }
 
+.device-not-detected {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.device-not-detected h3 {
+    margin-bottom: 1rem;
+    color: #ef4444;
+}
+
+.warning-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.mono {
+    font-family: 'Courier New', monospace;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    color: #10b981;
+}
+
+.status-auto {
+    color: #10b981;
+    font-weight: 600;
+}
+
 .topic-preview {
     background: rgba(255, 255, 255, 0.1);
     border-radius: 12px;
@@ -352,8 +380,58 @@ function updateTopicPreview() {
     document.getElementById('topicPreview').textContent = topicName;
 }
 
+// Carregar MAC address do localStorage
+function loadMacFromLocalStorage() {
+    console.log('🔍 Verificando localStorage para MAC address...');
+    
+    const storedMac = localStorage.getItem('esp32_mac_address');
+    console.log('📱 MAC encontrado no localStorage:', storedMac);
+    
+    const detectedSection = document.getElementById('device-detected-section');
+    const notDetectedSection = document.getElementById('device-not-detected-section');
+    
+    if (storedMac) {
+        // Popular campo hidden
+        const hiddenMacField = document.querySelector('input[name="mac_address"]');
+        if (hiddenMacField) {
+            hiddenMacField.value = storedMac;
+            console.log('✅ MAC carregado no campo hidden:', storedMac);
+        }
+        
+        // Mostrar seção de dispositivo detectado
+        if (detectedSection) {
+            const macDisplay = document.getElementById('detected-mac');
+            if (macDisplay) {
+                macDisplay.textContent = storedMac;
+            }
+            detectedSection.style.display = 'block';
+        }
+        
+        // Esconder seção de não detectado
+        if (notDetectedSection) {
+            notDetectedSection.style.display = 'none';
+        }
+        
+    } else {
+        console.log('⚠️ Nenhum MAC encontrado no localStorage');
+        
+        // Mostrar seção de não detectado
+        if (notDetectedSection) {
+            notDetectedSection.style.display = 'block';
+        }
+        
+        // Esconder seção de detectado
+        if (detectedSection) {
+            detectedSection.style.display = 'none';
+        }
+    }
+}
+
 // Event listeners
 document.addEventListener('DOMContentLoaded', function() {
+    // Carregar MAC do localStorage
+    loadMacFromLocalStorage();
+    
     // Atualizar preview inicial
     updateTopicPreview();
     
