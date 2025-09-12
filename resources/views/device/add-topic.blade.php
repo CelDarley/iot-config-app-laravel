@@ -380,29 +380,45 @@ function updateTopicPreview() {
     document.getElementById('topicPreview').textContent = topicName;
 }
 
-// Carregar MAC address do localStorage
-function loadMacFromLocalStorage() {
-    console.log('🔍 Verificando localStorage para MAC address...');
+// Carregar MAC address da URL ou localStorage
+function loadMacFromSources() {
+    console.log('🔍 Verificando MAC address da URL e localStorage...');
     
+    // Primeiro: verificar URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlMac = urlParams.get('mac');
+    console.log('🌐 MAC encontrado na URL:', urlMac);
+    
+    // Segundo: verificar localStorage
     const storedMac = localStorage.getItem('esp32_mac_address');
     console.log('📱 MAC encontrado no localStorage:', storedMac);
+    
+    // Prioridade: URL > localStorage
+    const finalMac = urlMac || storedMac;
+    console.log('🎯 MAC final selecionado:', finalMac, urlMac ? '(da URL)' : '(do localStorage)');
     
     const detectedSection = document.getElementById('device-detected-section');
     const notDetectedSection = document.getElementById('device-not-detected-section');
     
-    if (storedMac) {
+    if (finalMac) {
+        // Se MAC veio da URL, salvar também no localStorage para futuras visitas
+        if (urlMac && urlMac !== storedMac) {
+            localStorage.setItem('esp32_mac_address', urlMac);
+            console.log('💾 MAC da URL salvo no localStorage para futuras visitas');
+        }
+        
         // Popular campo hidden
         const hiddenMacField = document.querySelector('input[name="mac_address"]');
         if (hiddenMacField) {
-            hiddenMacField.value = storedMac;
-            console.log('✅ MAC carregado no campo hidden:', storedMac);
+            hiddenMacField.value = finalMac;
+            console.log('✅ MAC carregado no campo hidden:', finalMac);
         }
         
         // Mostrar seção de dispositivo detectado
         if (detectedSection) {
             const macDisplay = document.getElementById('detected-mac');
             if (macDisplay) {
-                macDisplay.textContent = storedMac;
+                macDisplay.textContent = finalMac;
             }
             detectedSection.style.display = 'block';
         }
@@ -412,8 +428,15 @@ function loadMacFromLocalStorage() {
             notDetectedSection.style.display = 'none';
         }
         
+        // Limpar URL para deixar mais limpa (opcional)
+        if (urlMac) {
+            const cleanUrl = window.location.origin + window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            console.log('🧹 URL limpa após carregar MAC');
+        }
+        
     } else {
-        console.log('⚠️ Nenhum MAC encontrado no localStorage');
+        console.log('⚠️ Nenhum MAC encontrado na URL nem localStorage');
         
         // Mostrar seção de não detectado
         if (notDetectedSection) {
@@ -429,8 +452,8 @@ function loadMacFromLocalStorage() {
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', function() {
-    // Carregar MAC do localStorage
-    loadMacFromLocalStorage();
+    // Carregar MAC da URL ou localStorage
+    loadMacFromSources();
     
     // Atualizar preview inicial
     updateTopicPreview();

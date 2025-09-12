@@ -220,13 +220,23 @@ function checkDeviceMAC() {
         noMacError: !!noMacError
     });
     
-    // Buscar MAC no localStorage com debug detalhado
+    // Primeiro: verificar URL
+    console.log('🌐 Verificando MAC na URL...');
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlMac = urlParams.get('mac');
+    console.log('🔗 MAC encontrado na URL:', urlMac);
+    
+    // Segundo: verificar localStorage
     console.log('🔍 Verificando localStorage...');
     console.log('localStorage completo:', localStorage);
     console.log('Chaves no localStorage:', Object.keys(localStorage));
     
-    const macAddress = localStorage.getItem('esp32_mac_address');
-    console.log('📍 MAC obtido do localStorage:', macAddress);
+    const storedMac = localStorage.getItem('esp32_mac_address');
+    console.log('📍 MAC obtido do localStorage:', storedMac);
+    
+    // Prioridade: URL > localStorage
+    const macAddress = urlMac || storedMac;
+    console.log('🎯 MAC final selecionado:', macAddress, urlMac ? '(da URL)' : '(do localStorage)');
     console.log('📍 Tipo do MAC:', typeof macAddress);
     console.log('📍 Comprimento do MAC:', macAddress ? macAddress.length : 'null');
     console.log('📍 MAC é válido?', macAddress && macAddress !== 'UNKNOWN' && macAddress !== 'null' && macAddress.length > 10);
@@ -234,6 +244,12 @@ function checkDeviceMAC() {
     // Forçar um pequeno delay para garantir que a página está carregada
     setTimeout(() => {
         if (macAddress && macAddress !== 'UNKNOWN' && macAddress !== 'null' && macAddress.length > 10) {
+            // Se MAC veio da URL, salvar no localStorage para futuras visitas
+            if (urlMac && urlMac !== storedMac) {
+                localStorage.setItem('esp32_mac_address', urlMac);
+                console.log('💾 MAC da URL salvo no localStorage para futuras visitas');
+            }
+            
             // MAC encontrado - mostrar formulário
             console.log('✅ MAC Address válido encontrado:', macAddress);
             
@@ -259,6 +275,13 @@ function checkDeviceMAC() {
             if (macCheckDiv) macCheckDiv.style.display = 'none';
             if (deviceForm) deviceForm.style.display = 'block';
             if (noMacError) noMacError.style.display = 'none';
+            
+            // Limpar URL para deixar mais limpa (opcional)
+            if (urlMac) {
+                const cleanUrl = window.location.origin + window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+                console.log('🧹 URL limpa após carregar MAC');
+            }
             
             console.log('✅ Formulário exibido com MAC:', macAddress);
             
