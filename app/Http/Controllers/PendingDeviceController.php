@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Log;
 
 class PendingDeviceController extends Controller
 {
-    private $backendUrl = 'http://10.102.0.112:8000/api';
+    private $backendUrl = 'http://10.102.0.101:8000/api';
 
     public function index()
     {
