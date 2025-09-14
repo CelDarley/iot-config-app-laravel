@@ -512,11 +512,43 @@ class DeviceController extends Controller
         return view('device.transition', compact('macAddress', 'ssid'));
     }
 
-    /**
+        /**
      * API: Retornar tipos de dispositivos disponíveis
      */
     public function getDeviceTypes()
     {
+        try {
+            // Buscar tipos de dispositivo da API principal
+            $apiUrl = config('app.api_base_url', 'http://localhost:8000/api');
+            $response = Http::timeout(10)->get($apiUrl . '/device-types', [
+                'active_only' => true
+            ]);
+
+            if ($response->successful()) {
+                $deviceTypes = $response->json()['data'] ?? [];
+                
+                // Converter para o formato esperado pelo frontend
+                $formattedTypes = array_map(function($type) {
+                    return [
+                        'value' => $type['name'],
+                        'label' => ($type['icon'] ?? '📱') . ' ' . $type['name']
+                    ];
+                }, $deviceTypes);
+
+                return response()->json([
+                    'success' => true,
+                    'data' => $formattedTypes
+                ]);
+            }
+
+            // Fallback para tipos fixos se a API falhar
+            \Log::warning('API de tipos de dispositivo falhou, usando fallback');
+            
+        } catch (\Exception $e) {
+            \Log::error('Erro ao buscar tipos de dispositivo: ' . $e->getMessage());
+        }
+
+        // Fallback para tipos fixos
         $deviceTypes = [
             ['value' => 'sensor', 'label' => '📊 Sensor'],
             ['value' => 'atuador', 'label' => '⚡ Atuador'],
@@ -535,6 +567,36 @@ class DeviceController extends Controller
      */
     public function getDepartments()
     {
+        try {
+            // Buscar departamentos da API principal
+            $apiUrl = config('app.api_base_url', 'http://localhost:8000/api');
+            $response = Http::timeout(10)->get($apiUrl . '/departments');
+
+            if ($response->successful()) {
+                $departments = $response->json()['data'] ?? [];
+                
+                // Converter para o formato esperado pelo frontend
+                $formattedDepts = array_map(function($dept) {
+                    return [
+                        'value' => strtolower(str_replace(' ', '_', $dept['name'])),
+                        'label' => '🏢 ' . $dept['name']
+                    ];
+                }, $departments);
+
+                return response()->json([
+                    'success' => true,
+                    'data' => $formattedDepts
+                ]);
+            }
+
+            // Fallback para departamentos fixos se a API falhar
+            \Log::warning('API de departamentos falhou, usando fallback');
+            
+        } catch (\Exception $e) {
+            \Log::error('Erro ao buscar departamentos: ' . $e->getMessage());
+        }
+
+        // Fallback para departamentos fixos
         $departments = [
             ['value' => 'producao', 'label' => '🏭 Produção'],
             ['value' => 'qualidade', 'label' => '✅ Qualidade'],
